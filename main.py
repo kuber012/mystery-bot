@@ -99,24 +99,32 @@ def download_ai_image(prompt, filename):
     print(f"🎨 Flux AI बाट ३५एमएम तस्बिर बन्दैछ: {prompt[:40]}...")
     encoded = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
-    res = requests.get(url, timeout=40)
+    res = requests.get(url, timeout=50)
     with open(filename, "wb") as f:
         f.write(res.content)
 
 
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
-    # Ken-Burns Zoom, डार्क कलर ग्रेडिङ, भिग्नेट, र Hinglish क्याप्सन जोड्ने
+    # अक्षरहरू सफा बनाउने
     caption_escaped = (
-        caption_text.replace("'", "").replace(":", "").replace('"', "")
+        caption_text.replace("'", "")
+        .replace(":", "")
+        .replace('"', "")
+        .replace("\\", "")
     )
 
+    # बोल्ड फन्ट फाइल छ कि छैन चेक गर्ने
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
+
+    # 'bold=1' हटाएर मोटो बोर्डर (borderw=6) हालिएको छ जसले गर्दा एरर कहिल्यै आउँदैन
     filter_complex = (
         f"[0:v]zoompan=z='min(zoom+0.0012,1.15)':d={int(duration*30)}:s=1080x1920:fps=30,"
         f"eq=contrast=1.35:brightness=-0.05:saturation=0.65,"
         f"colorbalance=bs=0.15:bm=0.1:rs=-0.05,"
         f"vignette=PI/4,"
-        f"drawtext=text='{caption_escaped}':fontcolor=yellow:fontsize=52:bold=1:"
-        f"bordercolor=black:borderw=5:x=(w-text_w)/2:y=h-420[v]"
+        f"drawtext=text='{caption_escaped}'{font_param}:fontcolor=yellow:fontsize=54:"
+        f"bordercolor=black:borderw=6:x=(w-text_w)/2:y=h-420[v]"
     )
 
     cmd = [
@@ -161,27 +169,22 @@ async def main():
         img_file = f"img_{idx}.jpg"
         vid_file = f"scene_{idx}.mp4"
 
-        # आवाज निकाल्ने
         await generate_scene_voice(scene["hindi_speech"], aud_file)
         dur = get_audio_duration(aud_file)
 
-        # फोटो ल्याउने
         download_ai_image(scene["english_visual_prompt"], img_file)
 
-        # भिडियो बनाउने (Zoom + Color Grade + Captions)
         build_scene_video(
             img_file, aud_file, scene["hinglish_caption"], dur, vid_file
         )
         scene_files.append(vid_file)
 
-    # सबै सिनहरू जोड्ने (Concatenate)
     with open("list.txt", "w") as f:
         for v in scene_files:
             f.write(f"file '{v}'\n")
 
     print("\n🎬 सबै सिनहरू र ब्याकग्राउन्ड सस्पेन्स साउन्ड जोड्दैछ...")
 
-    # फाइनल भिडियो जोड्ने र डार्क सस्पेन्स साउन्ड थप्ने
     cmd_final = [
         "ffmpeg",
         "-y",
@@ -194,9 +197,9 @@ async def main():
         "-f",
         "lavfi",
         "-i",
-        "aevalsrc=0.12*sin(2*PI*55*t)+0.06*sin(2*PI*110*t):s=44100",  # Dark Ambient Bass Drone
+        "aevalsrc=0.12*sin(2*PI*55*t)+0.06*sin(2*PI*110*t):s=44100",
         "-filter_complex",
-        "[0:a][1:a]amix=inputs=2:duration=first:weights=3 0.25[a]",  # भ्वाइस चर्को, म्युजिक हल्का मधुरो
+        "[0:a][1:a]amix=inputs=2:duration=first:weights=3 0.25[a]",
         "-map",
         "0:v",
         "-map",
