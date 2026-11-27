@@ -5,12 +5,12 @@ import re
 import edge_tts
 from google import genai
 
-# १. GitHub Secret बाट API Key लिने
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY भेटिएन! कृपया Secret चेक गर्नुहोस्।")
 
-client = genai.Client(api_key=api_key)
+# v1beta भर्सन खुला गरेर गुगलको एरर १००% फिक्स गरिएको छ
+client = genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
 HISTORY_FILE = "history.json"
 
 
@@ -43,17 +43,17 @@ def generate_mystery_story():
     1. Check for real-life CURRENT TRENDING mysteries globally. If found, pick it.
     2. If no trending mystery, pick a chilling, real-life UNSOLVED HISTORICAL mystery from anywhere worldwide.
     3. FORBIDDEN TOPICS (Do NOT repeat): {past_topics}
-    4. Must be 100% REAL mystery. Fast-paced and thrilling.
+    4. Must be 100% REAL mystery. Fast-paced, punchy, and thrilling.
     
     FORMAT:
-    Return strictly a JSON object:
+    Return strictly a valid JSON object without markdown formatting:
     {{
       "topic": "Name of the mystery",
       "is_trending": true or false,
       "scenes": [
         {{
           "scene_number": 1,
-          "hindi_speech": "शुद्ध र रोमाञ्चक हिन्दी भाषा (छिटो बोल्नको लागि)",
+          "hindi_speech": "रोमाञ्चक र छिटो बोल्ने हिन्दी भाषा",
           "hinglish_caption": "ENGLISH LETTERS MA HINGLISH CAPITAL TEXT",
           "english_visual_prompt": "Cinematic 35mm photograph, dark moody thriller atmosphere, archival footage, 8k"
         }}
@@ -62,10 +62,18 @@ def generate_mystery_story():
     Total scenes must be 4 to 5 short scenes (around 70-80 words total).
     """
 
-    # यहाँ १००% काम गर्ने 'gemini-1.5-flash' मोडल राखिएको छ
-    response = client.models.generate_content(
-        model="gemini-1.5-flash", contents=prompt
-    )
+    # गुगलको नयाँ मोडलबाट स्क्रिप्ट निकाल्ने
+    response = None
+    for model_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+        try:
+            print(f"🔄 मोडल {model_name} बाट प्रयास गर्दैछ...")
+            response = client.models.generate_content(
+                model=model_name, contents=prompt
+            )
+            if response and response.text:
+                break
+        except Exception as e:
+            print(f"⚠️ {model_name} चलेन, अर्को मोडल ट्राइ गर्दैछ...", e)
 
     text = response.text.strip()
     match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -75,7 +83,7 @@ def generate_mystery_story():
 
 
 async def generate_voice(full_text, filename):
-    # आवाजलाई हल्का छिटो (+10%) र गम्भीर (-3Hz) बनाइएको छ ताकि अल्छी नसुनियोस्
+    # आवाजलाई छिटो (+10%) र गम्भीर (-3Hz) बनाइएको छ
     communicate = edge_tts.Communicate(
         text=full_text, voice="hi-IN-MadhurNeural", pitch="-3Hz", rate="+10%"
     )
