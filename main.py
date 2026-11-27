@@ -99,9 +99,31 @@ def download_ai_image(prompt, filename):
     print(f"🎨 Flux AI बाट तस्बिर बन्दैछ: {prompt[:35]}...")
     encoded = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
-    res = requests.get(url, timeout=40)
-    with open(filename, "wb") as f:
-        f.write(res.content)
+
+    try:
+        res = requests.get(url, timeout=35)
+        # यदि फोटो सही आयो भने सेभ गर्ने
+        if res.status_code == 200 and len(res.content) > 5000:
+            with open(filename, "wb") as f:
+                f.write(res.content)
+            return
+    except Exception as e:
+        print(f"⚠️ Image download error: {e}")
+
+    # यदि इन्टरनेटले गर्दा फोटो आएन भने पनि भिडियो रोकिँदैन (Smart Fallback)
+    print("🛡️ Fallback: डार्क सिनेम्याटिक ब्याकग्राउन्ड बनाउँदैछ...")
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=0x0b0e14:s=1080x1920",
+        "-vframes",
+        "1",
+        filename,
+    ]
+    subprocess.run(cmd, check=True)
 
 
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
@@ -114,9 +136,10 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
 
-    # सुपर-फास्ट Ken Burns (अड्किने समस्या हटाइयो)
+    # १००% स्थिर र सुपर स्मूथ Ken-Burns Zoom (कहिल्यै क्र्यास नहुने)
     filter_complex = (
-        f"[0:v]scale=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':d={int(duration*30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30,"
+        f"[0:v]scale=w='1120+40*t':h='1990+70*t':eval=frame,"
+        f"crop=1080:1920,"
         f"eq=contrast=1.35:brightness=-0.05:saturation=0.65,"
         f"colorbalance=bs=0.15:bm=0.1:rs=-0.05,"
         f"vignette=PI/4,"
@@ -127,6 +150,10 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     cmd = [
         "ffmpeg",
         "-y",
+        "-loop",
+        "1",
+        "-t",
+        str(duration),
         "-i",
         img_path,
         "-i",
@@ -137,16 +164,15 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
         "[v]",
         "-map",
         "1:a",
-        "-t",
-        str(duration),
         "-c:v",
         "libx264",
         "-preset",
-        "ultrafast",  # २ सेकेन्डमै सिन रेन्डर हुन्छ
+        "ultrafast",
         "-pix_fmt",
         "yuv420p",
         "-c:a",
         "aac",
+        "-shortest",
         out_path,
     ]
     subprocess.run(cmd, check=True)
@@ -187,7 +213,6 @@ async def main():
         f"\n🎬 सबै सिनहरू जोड्दैछ (कुल समय: {total_dur:.1f}s)... डार्क BGM थप्दैछ..."
     )
 
-    # अडियोलाई निश्चित समय (total_dur) मा बाँधेर कहिल्यै नअड्किने बनाइयो
     cmd_final = [
         "ffmpeg",
         "-y",
