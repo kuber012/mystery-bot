@@ -9,8 +9,7 @@ api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY भेटिएन! कृपया Secret चेक गर्नुहोस्।")
 
-# v1beta भर्सन खुला गरेर गुगलको एरर १००% फिक्स गरिएको छ
-client = genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
+client = genai.Client(api_key=api_key)
 HISTORY_FILE = "history.json"
 
 
@@ -62,18 +61,24 @@ def generate_mystery_story():
     Total scenes must be 4 to 5 short scenes (around 70-80 words total).
     """
 
-    # गुगलको नयाँ मोडलबाट स्क्रिप्ट निकाल्ने
+    # गुगलले सिफारिस गरेको नयाँ 'gemini-3.8-flash' मोडल
+    models_to_try = ["gemini-3.8-flash", "gemini-3.6-flash"]
+
     response = None
-    for model_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+    for model_name in models_to_try:
         try:
-            print(f"🔄 मोडल {model_name} बाट प्रयास गर्दैछ...")
+            print(f"🔄 नयाँ मोडल {model_name} बाट स्क्रिप्ट माग्दैछ...")
             response = client.models.generate_content(
                 model=model_name, contents=prompt
             )
             if response and response.text:
+                print(f"✅ {model_name} ले सफलतापूर्वक स्क्रिप्ट बनायो!")
                 break
         except Exception as e:
-            print(f"⚠️ {model_name} चलेन, अर्को मोडल ट्राइ गर्दैछ...", e)
+            print(f"⚠️ {model_name} चलेन:", e)
+
+    if not response or not response.text:
+        raise RuntimeError("गुगल AI बाट स्क्रिप्ट आउन सकेन।")
 
     text = response.text.strip()
     match = re.search(r"\{.*\}", text, re.DOTALL)
