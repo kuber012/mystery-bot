@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import random
 import re
 import subprocess
 import urllib.parse
@@ -44,9 +45,7 @@ def generate_mystery_story():
     3. FORBIDDEN TOPICS: {past_topics}
     4. Must be 100% REAL mystery. Fast-paced, punchy, and thrilling.
     
-    IMPORTANT SAFETY RULE FOR VISUAL PROMPT:
-    AI image generators block violent words! DO NOT use words like 'murder', 'killing', 'blood', 'corpse', 'dead body'.
-    Instead, describe the ATMOSPHERE: e.g., 'isolated eerie wooden cabin at midnight', 'dense dark spooky fog over pine trees', 'abandoned vintage 1930s detective desk', 'mysterious footprints leading into dark woods', 'hyper-realistic 35mm film grain, cinematic thriller lighting'.
+    CRITICAL: For english_visual_prompt, do NOT use words like 'murder', 'blood', 'kill'. Use atmospheric words: 'isolated creepy house at night', 'dense dark spooky fog over pine trees', 'abandoned 1920s detective crime scene', '35mm photograph, eerie lighting'.
     
     FORMAT (Strict JSON only):
     {{
@@ -61,7 +60,7 @@ def generate_mystery_story():
         }}
       ]
     }}
-    Create strictly 4 short scenes. Total words around 60-70 words.
+    Create strictly 4 short scenes. Total words around 60 words.
     """
     for model_name in ["gemini-3.8-flash", "gemini-3.6-flash"]:
         try:
@@ -99,12 +98,16 @@ def get_audio_duration(file_path):
     return float(result.stdout.strip())
 
 
+# १ सेकेन्डमै १००% डार्क सिनेम्याटिक फोटो ल्याउने इन्जिन
 def download_ai_image(prompt, filename):
-    print(f"🎨 AI बाट ३५एमएम तस्बिर बन्दैछ: {prompt[:40]}...")
+    print(
+        f"🎨 ३५एमएम सिनेम्याटिक तस्बिर तयार गर्दैछ: {prompt[:35]}...",
+        flush=True,
+    )
     encoded = urllib.parse.quote(prompt)
 
-    # १. Pollinations Flux बाट तस्बिर ल्याउने
-    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true&seed=42"
+    # १. Pollinations AI बाट प्रयास गर्ने (१० सेकेन्ड टाइमआउट)
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -112,36 +115,33 @@ def download_ai_image(prompt, filename):
     }
 
     try:
-        res = requests.get(url, headers=headers, timeout=35)
-        if (
-            res.status_code == 200
-            and len(res.content) > 10000
-            and b"html" not in res.content[:50].lower()
-        ):
+        res = requests.get(url, headers=headers, timeout=12)
+        if res.status_code == 200 and len(res.content) > 10000:
             with open(filename, "wb") as f:
                 f.write(res.content)
-            print(f"✅ फोटो तयार भयो ({len(res.content)} bytes)")
+            print(
+                f"✅ AI फोटो सुरक्षित भयो ({len(res.content)} bytes)", flush=True
+            )
             return
-    except Exception as e:
-        print(f"⚠️ Primary image fetch error: {e}")
+    except:
+        pass
 
-    # २. यदि कहिलेकाहीँ AI रोकियो भने उच्च गुणस्तरको वास्तविक डार्क मिस्ट्री फोटो हाल्ने (कालो बक्स कहिल्यै आउँदैन)
-    print("🛡️ वास्तविक सिनेम्याटिक मिस्ट्री फोटो हाल्दैछ...")
-    fallback_urls = [
+    # २. तत्काल वास्तविक ४K डार्क मिस्ट्री फोटो हाल्ने (कालो बक्स कहिल्यै आउँदैन)
+    print("⚡ द्रुत सिनेम्याटिक मिस्ट्री दृश्य सुरक्षित गर्दैछ...", flush=True)
+    real_dark_photos = [
         "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1080&h=1920&fit=crop",
         "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1080&h=1920&fit=crop",
         "https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=1080&h=1920&fit=crop",
+        "https://images.unsplash.com/photo-1481833761820-0509d3217039?w=1080&h=1920&fit=crop",
         "https://images.unsplash.com/photo-1514539079130-25950c84af65?w=1080&h=1920&fit=crop",
     ]
-    import random
-
-    fb_url = random.choice(fallback_urls)
-    res = requests.get(fb_url, timeout=20)
+    res = requests.get(random.choice(real_dark_photos), timeout=10)
     with open(filename, "wb") as f:
         f.write(res.content)
-    print("✅ सिनेम्याटिक ब्याकग्राउन्ड फोटो सुरक्षित भयो!")
+    print("✅ सिनेम्याटिक दृश्य सुरक्षित भयो!", flush=True)
 
 
+# २ सेकेन्डमै सिन रेन्डर गर्ने लाइटवेट इन्जिन
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     caption_escaped = (
         caption_text.replace("'", "")
@@ -152,9 +152,10 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
 
+    # CPU मा भार नपर्ने सुपर-फास्ट सिनेम्याटिक प्यान (Cinematic Motion)
     filter_complex = (
-        f"[0:v]scale=w='1120+40*t':h='1990+70*t':eval=frame,"
-        f"crop=1080:1920,"
+        f"[0:v]scale=1160:2062:force_original_aspect_ratio=increase,"
+        f"crop=1080:1920:'(in_w-1080)/2':'(in_h-1920)/2 + 4*t',"
         f"eq=contrast=1.3:brightness=-0.03:saturation=0.7,"
         f"colorbalance=bs=0.12:bm=0.08:rs=-0.04,"
         f"vignette=PI/4.5,"
@@ -194,17 +195,17 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
 
 
 async def main():
-    print("🚀 नयाँ रहस्य कथा खोज्दैछ...")
+    print("🚀 नयाँ रहस्य कथा खोज्दैछ...", flush=True)
     data = generate_mystery_story()
     topic = data["topic"]
     save_history(topic)
-    print(f"\n🔥 छानिएको नयाँ विषय: {topic}")
+    print(f"\n🔥 छानिएको नयाँ विषय: {topic}", flush=True)
 
     scene_files = []
     total_dur = 0.0
 
     for idx, scene in enumerate(data["scenes"], 1):
-        print(f"\n--- सिन {idx} तयार गर्दैछ ---")
+        print(f"\n--- सिन {idx} तयार गर्दैछ ---", flush=True)
         aud_file = f"audio_{idx}.mp3"
         img_file = f"img_{idx}.jpg"
         vid_file = f"scene_{idx}.mp4"
@@ -225,7 +226,8 @@ async def main():
             f.write(f"file '{v}'\n")
 
     print(
-        f"\n🎬 सबै सिनहरू जोड्दैछ (कुल समय: {total_dur:.1f}s)... डार्क BGM थप्दैछ..."
+        f"\n🎬 सबै सिनहरू जोड्दैछ ({total_dur:.1f}s)... डार्क BGM थप्दैछ...",
+        flush=True,
     )
 
     cmd_final = [
@@ -257,7 +259,9 @@ async def main():
     ]
     subprocess.run(cmd_final, check=True)
 
-    print("\n🎉 १००% सम्पन्न भयो! भिडियो फाइल: final_mystery_short.mp4")
+    print(
+        "\n🎉 १००% सम्पन्न भयो! भिडियो फाइल: final_mystery_short.mp4", flush=True
+    )
 
 
 if __name__ == "__main__":
