@@ -1,13 +1,13 @@
-name: Generate Mystery Story and Voice
+name: Generate Mystery Short Video
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write # history.json लाई सेभ गर्नको लागि
+  contents: write
 
 jobs:
-  run-ai:
+  build-short:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -18,23 +18,23 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Tools
+      - name: Install FFmpeg and Fonts
         run: |
-          pip install google-genai edge-tts
+          sudo apt update
+          sudo apt install -y ffmpeg fonts-freefont-ttf fonts-dejavu-core
+          pip install google-genai edge-tts requests
 
-      - name: Run Script
+      - name: Run Master Video Generator
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python main.py
 
-      - name: Save Story and Audio
+      - name: Upload Final Video
         uses: actions/upload-artifact@v4
         with:
-          name: mystery-full-package
-          path: |
-            full_story_voice.mp3
-            story_details.txt
+          name: final-mystery-short-video
+          path: final_mystery_short.mp4
 
       - name: Commit Updated History
         run: |
