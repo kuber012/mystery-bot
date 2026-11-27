@@ -37,12 +37,16 @@ def save_history(topic):
 def generate_mystery_story():
     past_topics = load_history()
     prompt = f"""
-    You are an elite dark documentary creator for YouTube Shorts (duration 35-45 seconds).
+    You are an elite dark documentary creator for YouTube Shorts (duration 30-40 seconds).
     TASK:
     1. Check for real-life CURRENT TRENDING mysteries globally. If found, pick it.
     2. If no trending mystery, pick a chilling, real-life UNSOLVED HISTORICAL mystery from anywhere worldwide.
     3. FORBIDDEN TOPICS: {past_topics}
     4. Must be 100% REAL mystery. Fast-paced, punchy, and thrilling.
+    
+    IMPORTANT SAFETY RULE FOR VISUAL PROMPT:
+    AI image generators block violent words! DO NOT use words like 'murder', 'killing', 'blood', 'corpse', 'dead body'.
+    Instead, describe the ATMOSPHERE: e.g., 'isolated eerie wooden cabin at midnight', 'dense dark spooky fog over pine trees', 'abandoned vintage 1930s detective desk', 'mysterious footprints leading into dark woods', 'hyper-realistic 35mm film grain, cinematic thriller lighting'.
     
     FORMAT (Strict JSON only):
     {{
@@ -53,7 +57,7 @@ def generate_mystery_story():
           "scene_number": 1,
           "hindi_speech": "रोमाञ्चक हिन्दी भाषा",
           "hinglish_caption": "SHORT HINGLISH CAPITAL TEXT",
-          "english_visual_prompt": "Cinematic 35mm photograph, dark moody lighting, archival footage, 8k"
+          "english_visual_prompt": "Cinematic 35mm photograph, eerie atmospheric lighting, dark mystery aesthetic, 8k"
         }}
       ]
     }}
@@ -96,34 +100,46 @@ def get_audio_duration(file_path):
 
 
 def download_ai_image(prompt, filename):
-    print(f"🎨 Flux AI बाट तस्बिर बन्दैछ: {prompt[:35]}...")
+    print(f"🎨 AI बाट ३५एमएम तस्बिर बन्दैछ: {prompt[:40]}...")
     encoded = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
+
+    # १. Pollinations Flux बाट तस्बिर ल्याउने
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true&seed=42"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        )
+    }
 
     try:
-        res = requests.get(url, timeout=35)
-        # यदि फोटो सही आयो भने सेभ गर्ने
-        if res.status_code == 200 and len(res.content) > 5000:
+        res = requests.get(url, headers=headers, timeout=35)
+        if (
+            res.status_code == 200
+            and len(res.content) > 10000
+            and b"html" not in res.content[:50].lower()
+        ):
             with open(filename, "wb") as f:
                 f.write(res.content)
+            print(f"✅ फोटो तयार भयो ({len(res.content)} bytes)")
             return
     except Exception as e:
-        print(f"⚠️ Image download error: {e}")
+        print(f"⚠️ Primary image fetch error: {e}")
 
-    # यदि इन्टरनेटले गर्दा फोटो आएन भने पनि भिडियो रोकिँदैन (Smart Fallback)
-    print("🛡️ Fallback: डार्क सिनेम्याटिक ब्याकग्राउन्ड बनाउँदैछ...")
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        "color=c=0x0b0e14:s=1080x1920",
-        "-vframes",
-        "1",
-        filename,
+    # २. यदि कहिलेकाहीँ AI रोकियो भने उच्च गुणस्तरको वास्तविक डार्क मिस्ट्री फोटो हाल्ने (कालो बक्स कहिल्यै आउँदैन)
+    print("🛡️ वास्तविक सिनेम्याटिक मिस्ट्री फोटो हाल्दैछ...")
+    fallback_urls = [
+        "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1080&h=1920&fit=crop",
+        "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1080&h=1920&fit=crop",
+        "https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=1080&h=1920&fit=crop",
+        "https://images.unsplash.com/photo-1514539079130-25950c84af65?w=1080&h=1920&fit=crop",
     ]
-    subprocess.run(cmd, check=True)
+    import random
+
+    fb_url = random.choice(fallback_urls)
+    res = requests.get(fb_url, timeout=20)
+    with open(filename, "wb") as f:
+        f.write(res.content)
+    print("✅ सिनेम्याटिक ब्याकग्राउन्ड फोटो सुरक्षित भयो!")
 
 
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
@@ -136,13 +152,12 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
 
-    # १००% स्थिर र सुपर स्मूथ Ken-Burns Zoom (कहिल्यै क्र्यास नहुने)
     filter_complex = (
         f"[0:v]scale=w='1120+40*t':h='1990+70*t':eval=frame,"
         f"crop=1080:1920,"
-        f"eq=contrast=1.35:brightness=-0.05:saturation=0.65,"
-        f"colorbalance=bs=0.15:bm=0.1:rs=-0.05,"
-        f"vignette=PI/4,"
+        f"eq=contrast=1.3:brightness=-0.03:saturation=0.7,"
+        f"colorbalance=bs=0.12:bm=0.08:rs=-0.04,"
+        f"vignette=PI/4.5,"
         f"drawtext=text='{caption_escaped}'{font_param}:fontcolor=yellow:fontsize=54:"
         f"bordercolor=black:borderw=6:x=(w-text_w)/2:y=h-420[v]"
     )
