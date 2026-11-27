@@ -10,11 +10,109 @@ from google import genai
 import requests
 
 api_key = os.environ.get("GEMINI_API_KEY")
-if not api_key:
-    raise ValueError("GEMINI_API_KEY भेटिएन!")
-
-client = genai.Client(api_key=api_key)
+client = genai.Client(api_key=api_key) if api_key else None
 HISTORY_FILE = "history.json"
+
+# गुगल जाम हुँदा तुरुन्तै काम गर्ने विश्वका टप सत्य रहस्यहरूको आपतकालीन भल्ट
+BACKUP_MYSTERIES = [
+    {
+        "topic": "The Mystery of D.B. Cooper",
+        "scenes": [
+            {
+                "hindi_speech": "१९७१ में एक रहस्यमयी आदमी ने बीच हवा में एक पूरा प्लेन हाईजैक कर लिया।",
+                "hinglish_caption": "1971 MEIN PLANE HIJACK HO GAYA",
+                "english_visual_prompt": (
+                    "Vintage 1970s commercial airplane flying through dark"
+                    " storm clouds at night, moody cinematic lighting, 35mm"
+                    " photograph"
+                ),
+            },
+            {
+                "hindi_speech": (
+                    "उसने २० लाख डॉलर कैश लिए और पैराशूट पहनकर ४ हजार मीटर की"
+                    " ऊंचाई से रात के घने जंगलों में कूद गया।"
+                ),
+                "hinglish_caption": "20 LAKH DOLLAR LEKAR JUNGLE MEIN KOOD GAYA",
+                "english_visual_prompt": (
+                    "Dense dark rainy pine forest at night, mysterious silhouette"
+                    " of parachutist vanishing into deep fog, 35mm"
+                ),
+            },
+            {
+                "hindi_speech": (
+                    "हजारों एफबीआई एजेंटों ने जंगल का चप्पा-चप्पा छान मारा, पर"
+                    " उसका कोई नामोनिशान नहीं मिला।"
+                ),
+                "hinglish_caption": "FBI KO AAJ TAK KOI SABOOT NAHI MILA",
+                "english_visual_prompt": (
+                    "1970s FBI detectives with vintage flashlights searching"
+                    " muddy forest floor in heavy rain, eerie atmospheric"
+                    " lighting"
+                ),
+            },
+            {
+                "hindi_speech": (
+                    "५० साल बीत चुके हैं, पर डी.बी. कूपर का रहस्य आज भी दुनिया"
+                    " की सबसे बड़ी अनसुलझी गुत्थी है।"
+                ),
+                "hinglish_caption": "KAHAN GAYA WO AADMI? COMMENT KAREIN",
+                "english_visual_prompt": (
+                    "Old vintage classified FBI case file on wooden detective"
+                    " desk under dramatic yellow lamp light, 8k cinematic"
+                ),
+            },
+        ],
+    },
+    {
+        "topic": "The Ghost Ship Mary Celeste",
+        "scenes": [
+            {
+                "hindi_speech": (
+                    "१८७२ में अटलांटिक महासागर के बीच एक ऐसा जहाज मिला,"
+                    " जिसने सबको हिला कर रख दिया।"
+                ),
+                "hinglish_caption": "SAMUNDAR KE BEECH MILA GHOST SHIP",
+                "english_visual_prompt": (
+                    "Creepy 1870s wooden merchant ship drifting alone in stormy"
+                    " dark ocean waters, eerie sea mist, 35mm film"
+                ),
+            },
+            {
+                "hindi_speech": (
+                    "जहाज पर सारा सामान, खाना और कीमती सामान सुरक्षित था, लेकिन"
+                    " पूरा क्रू गायब था।"
+                ),
+                "hinglish_caption": "SABHI LOG ACHANAK GAYAB HO GAYE",
+                "english_visual_prompt": (
+                    "Empty ship deck at twilight, half-eaten breakfast table on"
+                    " wooden cabin, spooky silence, cinematic mystery"
+                ),
+            },
+            {
+                "hindi_speech": (
+                    "न कोई खून का कतरा, न कोई संघर्ष का निशान— मानो १० लोग"
+                    " हवा में ही गायब हो गए।"
+                ),
+                "hinglish_caption": "HAWA MEIN BILA GAYE 10 LOG",
+                "english_visual_prompt": (
+                    "Eerie empty ship steering wheel moving slowly by itself in"
+                    " cold sea breeze, dense ocean fog, dark cinema"
+                ),
+            },
+            {
+                "hindi_speech": (
+                    "वैज्ञानिक आज तक यह नहीं समझ पाए कि आखिर मैरी सेलेस्ट के साथ"
+                    " उस दिन क्या हुआ था।"
+                ),
+                "hinglish_caption": "KYA HUA THA US DIN? COMMENT KAREIN",
+                "english_visual_prompt": (
+                    "Deep dark ocean abyss at night, vast mysterious endless"
+                    " waters, dramatic cinematic lighting, 8k"
+                ),
+            },
+        ],
+    },
+]
 
 
 def load_history():
@@ -35,45 +133,42 @@ def save_history(topic):
         json.dump(history, f, indent=4, ensure_ascii=False)
 
 
-def generate_mystery_story():
+# गुगल AI बाट तुरुन्तै माग्ने, जाम भए भल्टबाट लिने (Never Hangs)
+def get_mystery_story():
     past_topics = load_history()
-    prompt = f"""
-    You are an elite dark documentary creator for YouTube Shorts (duration 30-40 seconds).
-    TASK:
-    1. Check for real-life CURRENT TRENDING mysteries globally. If found, pick it.
-    2. If no trending mystery, pick a chilling, real-life UNSOLVED HISTORICAL mystery from anywhere worldwide.
-    3. FORBIDDEN TOPICS: {past_topics}
-    4. Must be 100% REAL mystery. Fast-paced, punchy, and thrilling.
-    
-    CRITICAL: For english_visual_prompt, do NOT use words like 'murder', 'blood', 'kill'. Use atmospheric words: 'isolated creepy house at night', 'dense dark spooky fog over pine trees', 'abandoned 1920s detective crime scene', '35mm photograph, eerie lighting'.
-    
-    FORMAT (Strict JSON only):
-    {{
-      "topic": "Name of the mystery",
-      "is_trending": false,
-      "scenes": [
-        {{
-          "scene_number": 1,
-          "hindi_speech": "रोमाञ्चक हिन्दी भाषा",
-          "hinglish_caption": "SHORT HINGLISH CAPITAL TEXT",
-          "english_visual_prompt": "Cinematic 35mm photograph, eerie atmospheric lighting, dark mystery aesthetic, 8k"
-        }}
-      ]
-    }}
-    Create strictly 4 short scenes. Total words around 60 words.
-    """
-    for model_name in ["gemini-3.8-flash", "gemini-3.6-flash"]:
-        try:
-            res = client.models.generate_content(
-                model=model_name, contents=prompt
-            )
-            if res and res.text:
-                text = res.text.strip()
-                match = re.search(r"\{.*\}", text, re.DOTALL)
-                return json.loads(match.group(0)) if match else json.loads(text)
-        except Exception as e:
-            print(f"Retrying: {e}")
-    raise RuntimeError("AI Story generate failed")
+
+    # १. पहिले Google AI बाट प्रयास गर्ने (८ सेकेन्ड मात्र पर्खिने)
+    if client:
+        prompt = f"""
+        Elite YouTube Shorts thriller story (35s). 
+        Check current trending mystery globally or pick real historical unsolved mystery. 
+        Forbidden: {past_topics}. 
+        Return strictly JSON:
+        {{"topic":"Name", "scenes":[{{"scene_number":1, "hindi_speech":"...", "hinglish_caption":"...", "english_visual_prompt":"Cinematic 35mm..."}}]}}
+        Strictly 4 short scenes.
+        """
+        for model in ["gemini-3.8-flash", "gemini-2.5-flash"]:
+            try:
+                print(
+                    f"⚡ Google AI ({model}) बाट नयाँ रहस्य खोज्दैछ...",
+                    flush=True,
+                )
+                res = client.models.generate_content(
+                    model=model, contents=prompt
+                )
+                if res and res.text:
+                    match = re.search(r"\{.*\}", res.text.strip(), re.DOTALL)
+                    data = json.loads(match.group(0))
+                    print("✅ Google AI ले नयाँ रहस्य तयार पार्यो!", flush=True)
+                    return data
+            except Exception as e:
+                print(f"⚠️ Google AI ढिला भयो ({e}), अर्को प्रयास...", flush=True)
+                break
+
+    # २. यदि गुगल जाम भए आपतकालीन भल्टबाट तुरुन्तै लिने (० सेकेन्डमै)
+    print("🛡️ भल्टबाट नयाँ रहस्यमयी कथा सुरक्षित गर्दैछ...", flush=True)
+    available = [b for b in BACKUP_MYSTERIES if b["topic"] not in past_topics]
+    return available[0] if available else BACKUP_MYSTERIES[0]
 
 
 async def generate_scene_voice(text, filename):
@@ -98,15 +193,13 @@ def get_audio_duration(file_path):
     return float(result.stdout.strip())
 
 
-# १ सेकेन्डमै १००% डार्क सिनेम्याटिक फोटो ल्याउने इन्जिन
+# १ सेकेन्डमै १००% डार्क सिनेम्याटिक फोटो सुरक्षित गर्ने
 def download_ai_image(prompt, filename):
     print(
-        f"🎨 ३५एमएम सिनेम्याटिक तस्बिर तयार गर्दैछ: {prompt[:35]}...",
+        f"🎨 ३५एमएम सिनेम्याटिक तस्बिर तयार गर्दैछ: {prompt[:30]}...",
         flush=True,
     )
     encoded = urllib.parse.quote(prompt)
-
-    # १. Pollinations AI बाट प्रयास गर्ने (१० सेकेन्ड टाइमआउट)
     url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
     headers = {
         "User-Agent": (
@@ -115,7 +208,7 @@ def download_ai_image(prompt, filename):
     }
 
     try:
-        res = requests.get(url, headers=headers, timeout=12)
+        res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200 and len(res.content) > 10000:
             with open(filename, "wb") as f:
                 f.write(res.content)
@@ -126,16 +219,13 @@ def download_ai_image(prompt, filename):
     except:
         pass
 
-    # २. तत्काल वास्तविक ४K डार्क मिस्ट्री फोटो हाल्ने (कालो बक्स कहिल्यै आउँदैन)
-    print("⚡ द्रुत सिनेम्याटिक मिस्ट्री दृश्य सुरक्षित गर्दैछ...", flush=True)
     real_dark_photos = [
         "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1080&h=1920&fit=crop",
         "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1080&h=1920&fit=crop",
         "https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=1080&h=1920&fit=crop",
         "https://images.unsplash.com/photo-1481833761820-0509d3217039?w=1080&h=1920&fit=crop",
-        "https://images.unsplash.com/photo-1514539079130-25950c84af65?w=1080&h=1920&fit=crop",
     ]
-    res = requests.get(random.choice(real_dark_photos), timeout=10)
+    res = requests.get(random.choice(real_dark_photos), timeout=8)
     with open(filename, "wb") as f:
         f.write(res.content)
     print("✅ सिनेम्याटिक दृश्य सुरक्षित भयो!", flush=True)
@@ -152,7 +242,6 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
 
-    # CPU मा भार नपर्ने सुपर-फास्ट सिनेम्याटिक प्यान (Cinematic Motion)
     filter_complex = (
         f"[0:v]scale=1160:2062:force_original_aspect_ratio=increase,"
         f"crop=1080:1920:'(in_w-1080)/2':'(in_h-1920)/2 + 4*t',"
@@ -195,8 +284,7 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
 
 
 async def main():
-    print("🚀 नयाँ रहस्य कथा खोज्दैछ...", flush=True)
-    data = generate_mystery_story()
+    data = get_mystery_story()
     topic = data["topic"]
     save_history(topic)
     print(f"\n🔥 छानिएको नयाँ विषय: {topic}", flush=True)
