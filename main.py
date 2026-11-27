@@ -13,13 +13,12 @@ api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
 HISTORY_FILE = "history.json"
 
-# गुगल जाम हुँदा तुरुन्तै काम गर्ने विश्वका टप सत्य रहस्यहरूको आपतकालीन भल्ट
 BACKUP_MYSTERIES = [
     {
         "topic": "The Mystery of D.B. Cooper",
         "scenes": [
             {
-                "hindi_speech": "१९७१ में एक रहस्यमयी आदमी ने बीच हवा में एक पूरा प्लेन हाईजैक कर लिया।",
+                "hindi_speech": "1971 mein ek ajeeb aadmi ne hawa mein pura plane hijack kar liya.",
                 "hinglish_caption": "1971 MEIN PLANE HIJACK HO GAYA",
                 "english_visual_prompt": (
                     "Vintage 1970s commercial airplane flying through dark"
@@ -29,8 +28,8 @@ BACKUP_MYSTERIES = [
             },
             {
                 "hindi_speech": (
-                    "उसने २० लाख डॉलर कैश लिए और पैराशूट पहनकर ४ हजार मीटर की"
-                    " ऊंचाई से रात के घने जंगलों में कूद गया।"
+                    "Usne 20 lakh dollar liye aur parachute pehankar 4 hazar"
+                    " meter ki unchai se andhere jungle mein kood gaya."
                 ),
                 "hinglish_caption": "20 LAKH DOLLAR LEKAR JUNGLE MEIN KOOD GAYA",
                 "english_visual_prompt": (
@@ -40,8 +39,8 @@ BACKUP_MYSTERIES = [
             },
             {
                 "hindi_speech": (
-                    "हजारों एफबीआई एजेंटों ने जंगल का चप्पा-चप्पा छान मारा, पर"
-                    " उसका कोई नामोनिशान नहीं मिला।"
+                    "Hazaron FBI agents ne pura jungle chhan mara, par uska koi"
+                    " saboot nahi mila."
                 ),
                 "hinglish_caption": "FBI KO AAJ TAK KOI SABOOT NAHI MILA",
                 "english_visual_prompt": (
@@ -52,8 +51,8 @@ BACKUP_MYSTERIES = [
             },
             {
                 "hindi_speech": (
-                    "५० साल बीत चुके हैं, पर डी.बी. कूपर का रहस्य आज भी दुनिया"
-                    " की सबसे बड़ी अनसुलझी गुत्थी है।"
+                    "50 saal beet chuke hain, par ye mystery aaj bhi unsolve"
+                    " hai. Aapko kya lagta hai? Comment karein."
                 ),
                 "hinglish_caption": "KAHAN GAYA WO AADMI? COMMENT KAREIN",
                 "english_visual_prompt": (
@@ -68,8 +67,8 @@ BACKUP_MYSTERIES = [
         "scenes": [
             {
                 "hindi_speech": (
-                    "१८७२ में अटलांटिक महासागर के बीच एक ऐसा जहाज मिला,"
-                    " जिसने सबको हिला कर रख दिया।"
+                    "1872 mein Atlantic samundar ke beech ek aisa jahaz mila"
+                    " jisne sabko hairan kar diya."
                 ),
                 "hinglish_caption": "SAMUNDAR KE BEECH MILA GHOST SHIP",
                 "english_visual_prompt": (
@@ -79,8 +78,8 @@ BACKUP_MYSTERIES = [
             },
             {
                 "hindi_speech": (
-                    "जहाज पर सारा सामान, खाना और कीमती सामान सुरक्षित था, लेकिन"
-                    " पूरा क्रू गायब था।"
+                    "Jahaz par khana aur sara keemti saman surakshit tha,"
+                    " lekin pura crew gayab tha."
                 ),
                 "hinglish_caption": "SABHI LOG ACHANAK GAYAB HO GAYE",
                 "english_visual_prompt": (
@@ -90,8 +89,8 @@ BACKUP_MYSTERIES = [
             },
             {
                 "hindi_speech": (
-                    "न कोई खून का कतरा, न कोई संघर्ष का निशान— मानो १० लोग"
-                    " हवा में ही गायब हो गए।"
+                    "Na koi sangharsh ka nishan, mano 10 log hawa mein hi bila"
+                    " gaye."
                 ),
                 "hinglish_caption": "HAWA MEIN BILA GAYE 10 LOG",
                 "english_visual_prompt": (
@@ -101,8 +100,8 @@ BACKUP_MYSTERIES = [
             },
             {
                 "hindi_speech": (
-                    "वैज्ञानिक आज तक यह नहीं समझ पाए कि आखिर मैरी सेलेस्ट के साथ"
-                    " उस दिन क्या हुआ था।"
+                    "Aakhir Mary Celeste ke sath us din kya hua tha? Comment"
+                    " mein batayein."
                 ),
                 "hinglish_caption": "KYA HUA THA US DIN? COMMENT KAREIN",
                 "english_visual_prompt": (
@@ -133,11 +132,8 @@ def save_history(topic):
         json.dump(history, f, indent=4, ensure_ascii=False)
 
 
-# गुगल AI बाट तुरुन्तै माग्ने, जाम भए भल्टबाट लिने (Never Hangs)
 def get_mystery_story():
     past_topics = load_history()
-
-    # १. पहिले Google AI बाट प्रयास गर्ने (८ सेकेन्ड मात्र पर्खिने)
     if client:
         prompt = f"""
         Elite YouTube Shorts thriller story (35s). 
@@ -162,20 +158,33 @@ def get_mystery_story():
                     print("✅ Google AI ले नयाँ रहस्य तयार पार्यो!", flush=True)
                     return data
             except Exception as e:
-                print(f"⚠️ Google AI ढिला भयो ({e}), अर्को प्रयास...", flush=True)
+                print(f"⚠️ Google AI व्यस्त छ ({e}), अर्को प्रयास...", flush=True)
                 break
 
-    # २. यदि गुगल जाम भए आपतकालीन भल्टबाट तुरुन्तै लिने (० सेकेन्डमै)
     print("🛡️ भल्टबाट नयाँ रहस्यमयी कथा सुरक्षित गर्दैछ...", flush=True)
     available = [b for b in BACKUP_MYSTERIES if b["topic"] not in past_topics]
     return available[0] if available else BACKUP_MYSTERIES[0]
 
 
+# ३-तहको सुरक्षित भ्वाइस इन्जिन (कहिल्यै फेल नहुने)
 async def generate_scene_voice(text, filename):
-    communicate = edge_tts.Communicate(
-        text=text, voice="hi-IN-MadhurNeural", pitch="-3Hz", rate="+10%"
-    )
-    await communicate.save(filename)
+    attempts = [
+        ("hi-IN-MadhurNeural", "-2Hz", "+10%"),
+        ("hi-IN-MadhurNeural", "+0Hz", "+0%"),
+        ("hi-IN-SwaraNeural", "+0Hz", "+0%"),
+    ]
+    for voice, pitch, rate in attempts:
+        try:
+            communicate = edge_tts.Communicate(
+                text=text, voice=voice, pitch=pitch, rate=rate
+            )
+            await communicate.save(filename)
+            if os.path.exists(filename) and os.path.getsize(filename) > 500:
+                return
+        except Exception as e:
+            print(f"⚠️ Voice retry ({voice}): {e}", flush=True)
+            await asyncio.sleep(1)
+    raise RuntimeError("Voice generation failed after retries")
 
 
 def get_audio_duration(file_path):
@@ -193,7 +202,6 @@ def get_audio_duration(file_path):
     return float(result.stdout.strip())
 
 
-# १ सेकेन्डमै १००% डार्क सिनेम्याटिक फोटो सुरक्षित गर्ने
 def download_ai_image(prompt, filename):
     print(
         f"🎨 ३५एमएम सिनेम्याटिक तस्बिर तयार गर्दैछ: {prompt[:30]}...",
@@ -231,7 +239,6 @@ def download_ai_image(prompt, filename):
     print("✅ सिनेम्याटिक दृश्य सुरक्षित भयो!", flush=True)
 
 
-# २ सेकेन्डमै सिन रेन्डर गर्ने लाइटवेट इन्जिन
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     caption_escaped = (
         caption_text.replace("'", "")
