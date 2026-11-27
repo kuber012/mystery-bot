@@ -2,12 +2,15 @@ import asyncio
 import json
 import os
 import re
+import subprocess
+import urllib.parse
 import edge_tts
 from google import genai
+import requests
 
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
-    raise ValueError("GEMINI_API_KEY भेटिएन! कृपया Secret चेक गर्नुहोस्।")
+    raise ValueError("GEMINI_API_KEY भेटिएन!")
 
 client = genai.Client(api_key=api_key)
 HISTORY_FILE = "history.json"
@@ -33,88 +36,180 @@ def save_history(topic):
 
 def generate_mystery_story():
     past_topics = load_history()
-    print("🧠 पुरानो इतिहास चेक गर्दैछ... पहिले बनेका विषयहरू:", past_topics)
-
     prompt = f"""
     You are an elite dark documentary creator for YouTube Shorts (duration 35-45 seconds).
-    
     TASK:
     1. Check for real-life CURRENT TRENDING mysteries globally. If found, pick it.
     2. If no trending mystery, pick a chilling, real-life UNSOLVED HISTORICAL mystery from anywhere worldwide.
-    3. FORBIDDEN TOPICS (Do NOT repeat): {past_topics}
+    3. FORBIDDEN TOPICS: {past_topics}
     4. Must be 100% REAL mystery. Fast-paced, punchy, and thrilling.
     
-    FORMAT:
-    Return strictly a valid JSON object without markdown formatting:
+    FORMAT (Strict JSON only):
     {{
       "topic": "Name of the mystery",
-      "is_trending": true or false,
+      "is_trending": false,
       "scenes": [
         {{
           "scene_number": 1,
-          "hindi_speech": "रोमाञ्चक र छिटो बोल्ने हिन्दी भाषा",
-          "hinglish_caption": "ENGLISH LETTERS MA HINGLISH CAPITAL TEXT",
-          "english_visual_prompt": "Cinematic 35mm photograph, dark moody thriller atmosphere, archival footage, 8k"
+          "hindi_speech": "रोमाञ्चक हिन्दी भाषा",
+          "hinglish_caption": "SHORT HINGLISH CAPITAL TEXT",
+          "english_visual_prompt": "Cinematic 35mm photograph, dark moody lighting, archival footage, 8k"
         }}
       ]
     }}
-    Total scenes must be 4 to 5 short scenes (around 70-80 words total).
+    Create strictly 4 short scenes. Total words around 60-75 words.
     """
-
-    # गुगलले सिफारिस गरेको नयाँ 'gemini-3.8-flash' मोडल
-    models_to_try = ["gemini-3.8-flash", "gemini-3.6-flash"]
-
-    response = None
-    for model_name in models_to_try:
+    for model_name in ["gemini-3.8-flash", "gemini-3.6-flash"]:
         try:
-            print(f"🔄 नयाँ मोडल {model_name} बाट स्क्रिप्ट माग्दैछ...")
-            response = client.models.generate_content(
+            res = client.models.generate_content(
                 model=model_name, contents=prompt
             )
-            if response and response.text:
-                print(f"✅ {model_name} ले सफलतापूर्वक स्क्रिप्ट बनायो!")
-                break
+            if res and res.text:
+                text = res.text.strip()
+                match = re.search(r"\{.*\}", text, re.DOTALL)
+                return json.loads(match.group(0)) if match else json.loads(text)
         except Exception as e:
-            print(f"⚠️ {model_name} चलेन:", e)
-
-    if not response or not response.text:
-        raise RuntimeError("गुगल AI बाट स्क्रिप्ट आउन सकेन।")
-
-    text = response.text.strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        return json.loads(match.group(0))
-    return json.loads(text)
+            print(f"Retrying: {e}")
+    raise RuntimeError("AI Story generate failed")
 
 
-async def generate_voice(full_text, filename):
-    # आवाजलाई छिटो (+10%) र गम्भीर (-3Hz) बनाइएको छ
+async def generate_scene_voice(text, filename):
     communicate = edge_tts.Communicate(
-        text=full_text, voice="hi-IN-MadhurNeural", pitch="-3Hz", rate="+10%"
+        text=text, voice="hi-IN-MadhurNeural", pitch="-3Hz", rate="+10%"
     )
     await communicate.save(filename)
 
 
+def get_audio_duration(file_path):
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        file_path,
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return float(result.stdout.strip())
+
+
+def download_ai_image(prompt, filename):
+    print(f"🎨 Flux AI बाट ३५एमएम तस्बिर बन्दैछ: {prompt[:40]}...")
+    encoded = urllib.parse.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
+    res = requests.get(url, timeout=40)
+    with open(filename, "wb") as f:
+        f.write(res.content)
+
+
+def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
+    # Ken-Burns Zoom, डार्क कलर ग्रेडिङ, भिग्नेट, र Hinglish क्याप्सन जोड्ने
+    caption_escaped = (
+        caption_text.replace("'", "").replace(":", "").replace('"', "")
+    )
+
+    filter_complex = (
+        f"[0:v]zoompan=z='min(zoom+0.0012,1.15)':d={int(duration*30)}:s=1080x1920:fps=30,"
+        f"eq=contrast=1.35:brightness=-0.05:saturation=0.65,"
+        f"colorbalance=bs=0.15:bm=0.1:rs=-0.05,"
+        f"vignette=PI/4,"
+        f"drawtext=text='{caption_escaped}':fontcolor=yellow:fontsize=52:bold=1:"
+        f"bordercolor=black:borderw=5:x=(w-text_w)/2:y=h-420[v]"
+    )
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-loop",
+        "1",
+        "-i",
+        img_path,
+        "-i",
+        audio_path,
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[v]",
+        "-map",
+        "1:a",
+        "-t",
+        str(duration),
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        out_path,
+    ]
+    subprocess.run(cmd, check=True)
+
+
 async def main():
-    print("🚀 बोटले विश्वव्यापी रहस्य खोज्दैछ...")
+    print("🚀 नयाँ रहस्य कथा खोज्दैछ...")
     data = generate_mystery_story()
     topic = data["topic"]
     save_history(topic)
-
     print(f"\n🔥 छानिएको नयाँ विषय: {topic}")
-    full_hindi_speech = " ".join([s["hindi_speech"] for s in data["scenes"]])
 
-    with open("story_details.txt", "w", encoding="utf-8") as f:
-        f.write(f"विषय: {topic}\n\n")
-        for s in data["scenes"]:
-            f.write(f"--- सिन {s['scene_number']} ---\n")
-            f.write(f"आवाज (Hindi): {s['hindi_speech']}\n")
-            f.write(f"क्याप्सन (Hinglish): {s['hinglish_caption']}\n")
-            f.write(f"दृश्य प्रोम्प्ट (English): {s['english_visual_prompt']}\n\n")
+    scene_files = []
+    for idx, scene in enumerate(data["scenes"], 1):
+        print(f"\n--- सिन {idx} तयार गर्दैछ ---")
+        aud_file = f"audio_{idx}.mp3"
+        img_file = f"img_{idx}.jpg"
+        vid_file = f"scene_{idx}.mp4"
 
-    print("🎙️ छिटो र सस्पेन्स हिन्दी आवाज तयार गर्दैछ...")
-    await generate_voice(full_hindi_speech, "full_story_voice.mp3")
-    print("✅ सबै काम १००% सफल भयो!")
+        # आवाज निकाल्ने
+        await generate_scene_voice(scene["hindi_speech"], aud_file)
+        dur = get_audio_duration(aud_file)
+
+        # फोटो ल्याउने
+        download_ai_image(scene["english_visual_prompt"], img_file)
+
+        # भिडियो बनाउने (Zoom + Color Grade + Captions)
+        build_scene_video(
+            img_file, aud_file, scene["hinglish_caption"], dur, vid_file
+        )
+        scene_files.append(vid_file)
+
+    # सबै सिनहरू जोड्ने (Concatenate)
+    with open("list.txt", "w") as f:
+        for v in scene_files:
+            f.write(f"file '{v}'\n")
+
+    print("\n🎬 सबै सिनहरू र ब्याकग्राउन्ड सस्पेन्स साउन्ड जोड्दैछ...")
+
+    # फाइनल भिडियो जोड्ने र डार्क सस्पेन्स साउन्ड थप्ने
+    cmd_final = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        "list.txt",
+        "-f",
+        "lavfi",
+        "-i",
+        "aevalsrc=0.12*sin(2*PI*55*t)+0.06*sin(2*PI*110*t):s=44100",  # Dark Ambient Bass Drone
+        "-filter_complex",
+        "[0:a][1:a]amix=inputs=2:duration=first:weights=3 0.25[a]",  # भ्वाइस चर्को, म्युजिक हल्का मधुरो
+        "-map",
+        "0:v",
+        "-map",
+        "[a]",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "final_mystery_short.mp4",
+    ]
+    subprocess.run(cmd_final, check=True)
+
+    print("\n🎉 १००% कम्प्लिट भयो! भिडियो फाइल: final_mystery_short.mp4")
 
 
 if __name__ == "__main__":
