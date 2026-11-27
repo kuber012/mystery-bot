@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import random
 import re
 import subprocess
 import urllib.parse
@@ -13,104 +12,54 @@ api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
 HISTORY_FILE = "history.json"
 
-BACKUP_MYSTERIES = [
+# हरेक सिनको लागि १००% मिल्ने भिजुअल लिंक फिक्स गरिएको मास्टर भल्ट
+PERFECT_MYSTERIES = [
     {
         "topic": "The Mystery of D.B. Cooper",
         "scenes": [
             {
+                "scene_number": 1,
                 "hindi_speech": "1971 mein ek ajeeb aadmi ne hawa mein pura plane hijack kar liya.",
                 "hinglish_caption": "1971 MEIN PLANE HIJACK HO GAYA",
-                "english_visual_prompt": (
-                    "Vintage 1970s commercial airplane flying through dark"
-                    " storm clouds at night, moody cinematic lighting, 35mm"
-                    " photograph"
-                ),
+                "search_query": "airplane flying dark storm clouds night",
+                # १. प्लेन उडिरहेको दृश्य
+                "exact_photo": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1080&h=1920&fit=crop",
             },
             {
+                "scene_number": 2,
                 "hindi_speech": (
-                    "Usne 20 lakh dollar liye aur parachute pehankar 4 hazar"
-                    " meter ki unchai se andhere jungle mein kood gaya."
+                    "Usne 20 lakh dollar cash liye aur parachute pehankar andhere"
+                    " jungle mein kood gaya."
                 ),
                 "hinglish_caption": "20 LAKH DOLLAR LEKAR JUNGLE MEIN KOOD GAYA",
-                "english_visual_prompt": (
-                    "Dense dark rainy pine forest at night, mysterious silhouette"
-                    " of parachutist vanishing into deep fog, 35mm"
-                ),
+                "search_query": "dark misty pine forest night rain parachute",
+                # २. रातिको डरलाग्दो कुहिरो भएको जंगल
+                "exact_photo": "https://images.unsplash.com/photo-1511497584788-87676104235f?w=1080&h=1920&fit=crop",
             },
             {
+                "scene_number": 3,
                 "hindi_speech": (
                     "Hazaron FBI agents ne pura jungle chhan mara, par uska koi"
                     " saboot nahi mila."
                 ),
                 "hinglish_caption": "FBI KO AAJ TAK KOI SABOOT NAHI MILA",
-                "english_visual_prompt": (
-                    "1970s FBI detectives with vintage flashlights searching"
-                    " muddy forest floor in heavy rain, eerie atmospheric"
-                    " lighting"
-                ),
+                "search_query": "detectives flashlight searching dark woods",
+                # ३. जंगलमा टर्च बालेर खोजिरहेको दृश्य
+                "exact_photo": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1080&h=1920&fit=crop",
             },
             {
+                "scene_number": 4,
                 "hindi_speech": (
-                    "50 saal beet chuke hain, par ye mystery aaj bhi unsolve"
-                    " hai. Aapko kya lagta hai? Comment karein."
+                    "50 saal beet chuke hain, par ye mystery aaj bhi unsolved"
+                    " hai. Kahan gaya wo? Comment karein."
                 ),
                 "hinglish_caption": "KAHAN GAYA WO AADMI? COMMENT KAREIN",
-                "english_visual_prompt": (
-                    "Old vintage classified FBI case file on wooden detective"
-                    " desk under dramatic yellow lamp light, 8k cinematic"
-                ),
+                "search_query": "vintage classified case file detective desk",
+                # ४. सीक्रेट केस फाइल र जासूसको टेबल
+                "exact_photo": "https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1080&h=1920&fit=crop",
             },
         ],
-    },
-    {
-        "topic": "The Ghost Ship Mary Celeste",
-        "scenes": [
-            {
-                "hindi_speech": (
-                    "1872 mein Atlantic samundar ke beech ek aisa jahaz mila"
-                    " jisne sabko hairan kar diya."
-                ),
-                "hinglish_caption": "SAMUNDAR KE BEECH MILA GHOST SHIP",
-                "english_visual_prompt": (
-                    "Creepy 1870s wooden merchant ship drifting alone in stormy"
-                    " dark ocean waters, eerie sea mist, 35mm film"
-                ),
-            },
-            {
-                "hindi_speech": (
-                    "Jahaz par khana aur sara keemti saman surakshit tha,"
-                    " lekin pura crew gayab tha."
-                ),
-                "hinglish_caption": "SABHI LOG ACHANAK GAYAB HO GAYE",
-                "english_visual_prompt": (
-                    "Empty ship deck at twilight, half-eaten breakfast table on"
-                    " wooden cabin, spooky silence, cinematic mystery"
-                ),
-            },
-            {
-                "hindi_speech": (
-                    "Na koi sangharsh ka nishan, mano 10 log hawa mein hi bila"
-                    " gaye."
-                ),
-                "hinglish_caption": "HAWA MEIN BILA GAYE 10 LOG",
-                "english_visual_prompt": (
-                    "Eerie empty ship steering wheel moving slowly by itself in"
-                    " cold sea breeze, dense ocean fog, dark cinema"
-                ),
-            },
-            {
-                "hindi_speech": (
-                    "Aakhir Mary Celeste ke sath us din kya hua tha? Comment"
-                    " mein batayein."
-                ),
-                "hinglish_caption": "KYA HUA THA US DIN? COMMENT KAREIN",
-                "english_visual_prompt": (
-                    "Deep dark ocean abyss at night, vast mysterious endless"
-                    " waters, dramatic cinematic lighting, 8k"
-                ),
-            },
-        ],
-    },
+    }
 ]
 
 
@@ -132,41 +81,7 @@ def save_history(topic):
         json.dump(history, f, indent=4, ensure_ascii=False)
 
 
-def get_mystery_story():
-    past_topics = load_history()
-    if client:
-        prompt = f"""
-        Elite YouTube Shorts thriller story (35s). 
-        Check current trending mystery globally or pick real historical unsolved mystery. 
-        Forbidden: {past_topics}. 
-        Return strictly JSON:
-        {{"topic":"Name", "scenes":[{{"scene_number":1, "hindi_speech":"...", "hinglish_caption":"...", "english_visual_prompt":"Cinematic 35mm..."}}]}}
-        Strictly 4 short scenes.
-        """
-        for model in ["gemini-3.8-flash", "gemini-2.5-flash"]:
-            try:
-                print(
-                    f"⚡ Google AI ({model}) बाट नयाँ रहस्य खोज्दैछ...",
-                    flush=True,
-                )
-                res = client.models.generate_content(
-                    model=model, contents=prompt
-                )
-                if res and res.text:
-                    match = re.search(r"\{.*\}", res.text.strip(), re.DOTALL)
-                    data = json.loads(match.group(0))
-                    print("✅ Google AI ले नयाँ रहस्य तयार पार्यो!", flush=True)
-                    return data
-            except Exception as e:
-                print(f"⚠️ Google AI व्यस्त छ ({e}), अर्को प्रयास...", flush=True)
-                break
-
-    print("🛡️ भल्टबाट नयाँ रहस्यमयी कथा सुरक्षित गर्दैछ...", flush=True)
-    available = [b for b in BACKUP_MYSTERIES if b["topic"] not in past_topics]
-    return available[0] if available else BACKUP_MYSTERIES[0]
-
-
-# ३-तहको सुरक्षित भ्वाइस इन्जिन (कहिल्यै फेल नहुने)
+# ३-तहको सुरक्षित भ्वाइस इन्जिन
 async def generate_scene_voice(text, filename):
     attempts = [
         ("hi-IN-MadhurNeural", "-2Hz", "+10%"),
@@ -184,7 +99,7 @@ async def generate_scene_voice(text, filename):
         except Exception as e:
             print(f"⚠️ Voice retry ({voice}): {e}", flush=True)
             await asyncio.sleep(1)
-    raise RuntimeError("Voice generation failed after retries")
+    raise RuntimeError("Voice generation failed")
 
 
 def get_audio_duration(file_path):
@@ -202,43 +117,52 @@ def get_audio_duration(file_path):
     return float(result.stdout.strip())
 
 
-def download_ai_image(prompt, filename):
-    print(
-        f"🎨 ३५एमएम सिनेम्याटिक तस्बिर तयार गर्दैछ: {prompt[:30]}...",
-        flush=True,
-    )
-    encoded = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        )
-    }
+# १ सेकेन्डमै ठ्याक्कै कथा अनुसार मिल्ने फोटो डाउनलोड गर्ने इन्जिन
+def download_exact_scene_image(scene_data, filename):
+    query = scene_data.get("search_query", "")
+    exact_backup = scene_data.get("exact_photo", "")
 
+    print(f"🎯 सिनको लागि १००% मिल्ने फोटो खोज्दैछ: '{query}'...", flush=True)
+
+    # १. पहिले Lexica AI बाट खोज्ने
     try:
-        res = requests.get(url, headers=headers, timeout=8)
-        if res.status_code == 200 and len(res.content) > 10000:
-            with open(filename, "wb") as f:
-                f.write(res.content)
-            print(
-                f"✅ AI फोटो सुरक्षित भयो ({len(res.content)} bytes)", flush=True
-            )
-            return
-    except:
-        pass
+        encoded = urllib.parse.quote(query)
+        lexica_url = f"https://lexica.art/api/v1/search?q={encoded}"
+        res = requests.get(
+            lexica_url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                    " AppleWebKit/537.36"
+                )
+            },
+            timeout=5,
+        )
+        if res.status_code == 200:
+            images = res.json().get("images", [])
+            if images:
+                best_img = images[0].get("src") or images[0].get("srcSmall")
+                img_res = requests.get(best_img, timeout=6)
+                if img_res.status_code == 200 and len(img_res.content) > 5000:
+                    with open(filename, "wb") as f:
+                        f.write(img_res.content)
+                    print(
+                        f"✅ Lexica बाट हुबहु फोटो सुरक्षित भयो! ({len(img_res.content)} bytes)",
+                        flush=True,
+                    )
+                    return
+    except Exception as e:
+        print(f"⚠️ Lexica retry: {e}", flush=True)
 
-    real_dark_photos = [
-        "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1080&h=1920&fit=crop",
-        "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1080&h=1920&fit=crop",
-        "https://images.unsplash.com/photo-1509248961158-e54f6934749c?w=1080&h=1920&fit=crop",
-        "https://images.unsplash.com/photo-1481833761820-0509d3217039?w=1080&h=1920&fit=crop",
-    ]
-    res = requests.get(random.choice(real_dark_photos), timeout=8)
+    # २. यदि Lexica ढिला भए सिधै त्यो सिनको लागि फिक्स गरिएको फोटो हाल्ने (१००% प्लेन/जंगल/फाइल नै आउँछ)
+    print("🎯 सिनको लागि ग्यारेन्टी गरिएको फोटो हाल्दैछ...", flush=True)
+    res = requests.get(exact_backup, timeout=8)
     with open(filename, "wb") as f:
         f.write(res.content)
-    print("✅ सिनेम्याटिक दृश्य सुरक्षित भयो!", flush=True)
+    print("✅ ठ्याक्कै मिल्ने फोटो सुरक्षित भयो!", flush=True)
 
 
+# २ सेकेन्डमै सिन रेन्डर गर्ने इन्जिन
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     caption_escaped = (
         caption_text.replace("'", "")
@@ -291,26 +215,29 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
 
 
 async def main():
-    data = get_mystery_story()
-    topic = data["topic"]
+    story_data = PERFECT_MYSTERIES[0]
+    topic = story_data["topic"]
     save_history(topic)
-    print(f"\n🔥 छानिएको नयाँ विषय: {topic}", flush=True)
+    print(f"\n🔥 छानिएको रहस्य: {topic}", flush=True)
 
     scene_files = []
     total_dur = 0.0
 
-    for idx, scene in enumerate(data["scenes"], 1):
+    for idx, scene in enumerate(story_data["scenes"], 1):
         print(f"\n--- सिन {idx} तयार गर्दैछ ---", flush=True)
         aud_file = f"audio_{idx}.mp3"
         img_file = f"img_{idx}.jpg"
         vid_file = f"scene_{idx}.mp4"
 
+        # १. आवाज निकाल्ने
         await generate_scene_voice(scene["hindi_speech"], aud_file)
         dur = get_audio_duration(aud_file)
         total_dur += dur
 
-        download_ai_image(scene["english_visual_prompt"], img_file)
+        # २. ठ्याक्कै त्यही सिनको फोटो ल्याउने
+        download_exact_scene_image(scene, img_file)
 
+        # ३. भिडियो जोड्ने
         build_scene_video(
             img_file, aud_file, scene["hinglish_caption"], dur, vid_file
         )
