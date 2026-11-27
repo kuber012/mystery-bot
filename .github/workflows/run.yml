@@ -1,10 +1,13 @@
-name: Run Mystery Voice Test
+name: Generate Mystery Story and Voice
 
 on:
-  workflow_dispatch: # तपाईंले बटन थिचेपछि मात्र चल्ने
+  workflow_dispatch:
+
+permissions:
+  contents: write # history.json लाई सेभ गर्नको लागि
 
 jobs:
-  build-and-run:
+  run-ai:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -17,14 +20,26 @@ jobs:
 
       - name: Install Tools
         run: |
-          pip install edge-tts
+          pip install google-genai edge-tts
 
       - name: Run Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python main.py
 
-      - name: Save Audio File
+      - name: Save Story and Audio
         uses: actions/upload-artifact@v4
         with:
-          name: mystery-audio
-          path: mystery_voice.mp3
+          name: mystery-full-package
+          path: |
+            full_story_voice.mp3
+            story_details.txt
+
+      - name: Commit Updated History
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add history.json
+          git commit -m "Update history [skip ci]" || echo "No changes to commit"
+          git push
