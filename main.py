@@ -57,7 +57,7 @@ def generate_mystery_story():
         }}
       ]
     }}
-    Create strictly 4 short scenes. Total words around 60-75 words.
+    Create strictly 4 short scenes. Total words around 60-70 words.
     """
     for model_name in ["gemini-3.8-flash", "gemini-3.6-flash"]:
         try:
@@ -96,30 +96,27 @@ def get_audio_duration(file_path):
 
 
 def download_ai_image(prompt, filename):
-    print(f"🎨 Flux AI बाट ३५एमएम तस्बिर बन्दैछ: {prompt[:40]}...")
+    print(f"🎨 Flux AI बाट तस्बिर बन्दैछ: {prompt[:35]}...")
     encoded = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded}?width=1080&height=1920&model=flux&nologo=true"
-    res = requests.get(url, timeout=50)
+    res = requests.get(url, timeout=40)
     with open(filename, "wb") as f:
         f.write(res.content)
 
 
 def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
-    # अक्षरहरू सफा बनाउने
     caption_escaped = (
         caption_text.replace("'", "")
         .replace(":", "")
         .replace('"', "")
         .replace("\\", "")
     )
-
-    # बोल्ड फन्ट फाइल छ कि छैन चेक गर्ने
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
 
-    # 'bold=1' हटाएर मोटो बोर्डर (borderw=6) हालिएको छ जसले गर्दा एरर कहिल्यै आउँदैन
+    # सुपर-फास्ट Ken Burns (अड्किने समस्या हटाइयो)
     filter_complex = (
-        f"[0:v]zoompan=z='min(zoom+0.0012,1.15)':d={int(duration*30)}:s=1080x1920:fps=30,"
+        f"[0:v]scale=1080:1920,zoompan=z='min(zoom+0.0015,1.15)':d={int(duration*30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30,"
         f"eq=contrast=1.35:brightness=-0.05:saturation=0.65,"
         f"colorbalance=bs=0.15:bm=0.1:rs=-0.05,"
         f"vignette=PI/4,"
@@ -130,8 +127,6 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
     cmd = [
         "ffmpeg",
         "-y",
-        "-loop",
-        "1",
         "-i",
         img_path,
         "-i",
@@ -146,6 +141,8 @@ def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
         str(duration),
         "-c:v",
         "libx264",
+        "-preset",
+        "ultrafast",  # २ सेकेन्डमै सिन रेन्डर हुन्छ
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -163,6 +160,8 @@ async def main():
     print(f"\n🔥 छानिएको नयाँ विषय: {topic}")
 
     scene_files = []
+    total_dur = 0.0
+
     for idx, scene in enumerate(data["scenes"], 1):
         print(f"\n--- सिन {idx} तयार गर्दैछ ---")
         aud_file = f"audio_{idx}.mp3"
@@ -171,6 +170,7 @@ async def main():
 
         await generate_scene_voice(scene["hindi_speech"], aud_file)
         dur = get_audio_duration(aud_file)
+        total_dur += dur
 
         download_ai_image(scene["english_visual_prompt"], img_file)
 
@@ -183,8 +183,11 @@ async def main():
         for v in scene_files:
             f.write(f"file '{v}'\n")
 
-    print("\n🎬 सबै सिनहरू र ब्याकग्राउन्ड सस्पेन्स साउन्ड जोड्दैछ...")
+    print(
+        f"\n🎬 सबै सिनहरू जोड्दैछ (कुल समय: {total_dur:.1f}s)... डार्क BGM थप्दैछ..."
+    )
 
+    # अडियोलाई निश्चित समय (total_dur) मा बाँधेर कहिल्यै नअड्किने बनाइयो
     cmd_final = [
         "ffmpeg",
         "-y",
@@ -197,7 +200,7 @@ async def main():
         "-f",
         "lavfi",
         "-i",
-        "aevalsrc=0.12*sin(2*PI*55*t)+0.06*sin(2*PI*110*t):s=44100",
+        f"aevalsrc=0.12*sin(2*PI*55*t)+0.06*sin(2*PI*110*t):s=44100:d={total_dur}",
         "-filter_complex",
         "[0:a][1:a]amix=inputs=2:duration=first:weights=3 0.25[a]",
         "-map",
@@ -208,11 +211,13 @@ async def main():
         "copy",
         "-c:a",
         "aac",
+        "-t",
+        str(total_dur),
         "final_mystery_short.mp4",
     ]
     subprocess.run(cmd_final, check=True)
 
-    print("\n🎉 १००% कम्प्लिट भयो! भिडियो फाइल: final_mystery_short.mp4")
+    print("\n🎉 १००% सम्पन्न भयो! भिडियो फाइल: final_mystery_short.mp4")
 
 
 if __name__ == "__main__":
