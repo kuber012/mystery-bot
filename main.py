@@ -2,64 +2,88 @@ import asyncio
 import json
 import os
 import re
-import subprocess
-import urllib.parse
 import edge_tts
 from google import genai
-import requests
 
 api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
 HISTORY_FILE = "history.json"
 
-# हरेक सिनको लागि १००% मिल्ने भिजुअल लिंक फिक्स गरिएको मास्टर भल्ट
-PERFECT_MYSTERIES = [
+# गुगल जाम हुँदा प्रयोग हुने विश्वका सबैभन्दा खतरनाक र अनौठा सत्य रहस्यहरू
+FALLBACK_MYSTERIES = [
     {
-        "topic": "The Mystery of D.B. Cooper",
-        "scenes": [
-            {
-                "scene_number": 1,
-                "hindi_speech": "1971 mein ek ajeeb aadmi ne hawa mein pura plane hijack kar liya.",
-                "hinglish_caption": "1971 MEIN PLANE HIJACK HO GAYA",
-                "search_query": "airplane flying dark storm clouds night",
-                # १. प्लेन उडिरहेको दृश्य
-                "exact_photo": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1080&h=1920&fit=crop",
-            },
-            {
-                "scene_number": 2,
-                "hindi_speech": (
-                    "Usne 20 lakh dollar cash liye aur parachute pehankar andhere"
-                    " jungle mein kood gaya."
-                ),
-                "hinglish_caption": "20 LAKH DOLLAR LEKAR JUNGLE MEIN KOOD GAYA",
-                "search_query": "dark misty pine forest night rain parachute",
-                # २. रातिको डरलाग्दो कुहिरो भएको जंगल
-                "exact_photo": "https://images.unsplash.com/photo-1511497584788-87676104235f?w=1080&h=1920&fit=crop",
-            },
-            {
-                "scene_number": 3,
-                "hindi_speech": (
-                    "Hazaron FBI agents ne pura jungle chhan mara, par uska koi"
-                    " saboot nahi mila."
-                ),
-                "hinglish_caption": "FBI KO AAJ TAK KOI SABOOT NAHI MILA",
-                "search_query": "detectives flashlight searching dark woods",
-                # ३. जंगलमा टर्च बालेर खोजिरहेको दृश्य
-                "exact_photo": "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1080&h=1920&fit=crop",
-            },
-            {
-                "scene_number": 4,
-                "hindi_speech": (
-                    "50 saal beet chuke hain, par ye mystery aaj bhi unsolved"
-                    " hai. Kahan gaya wo? Comment karein."
-                ),
-                "hinglish_caption": "KAHAN GAYA WO AADMI? COMMENT KAREIN",
-                "search_query": "vintage classified case file detective desk",
-                # ४. सीक्रेट केस फाइल र जासूसको टेबल
-                "exact_photo": "https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1080&h=1920&fit=crop",
-            },
-        ],
-    }
+        "topic": "The Dyatlov Pass Incident",
+        "script": (
+            "1959 mein Russia ke barfile pahadon par 9 experienced trekkers ki"
+            " aisi khaufnak maut hui, jiska jawab science ke paas aaj bhi nahi"
+            " hai! Unka tent andar se chaku se kata hua mila, mano wo kisi aisi"
+            " cheez se bhag rahe the jisne unhe dehshat mein daal diya tha."
+            " Kadi thand mein unke shareer par kapde nahi the, aur kuch ki"
+            " aankhein aur jeebh gayab thi! Na koi ladai ke nishan, na koi"
+            " hathiyar. Aakhir un 9 logon ne us raat kya dekha tha? Kya wo koi"
+            " secret military test tha, ya kuch aisa jise insaan nahi samajh"
+            " sakte? Comment mein apni rai zaroor dein!"
+        ),
+        "editing_guide": (
+            "CapCut Guide: 1. Snowy mountains / Tent footage 2. Creepy"
+            " footprints in snow 3. 1950s Soviet investigation files 4. Dark"
+            " blizzard ending"
+        ),
+    },
+    {
+        "topic": "The Disappearance of Flight 19",
+        "script": (
+            "1945 mein Bermuda Triangle ke upar se 5 American ladaku viman"
+            " achanak hawa mein hi gayab ho gaye! Control room ko aakhiri"
+            " sandesh aaya— 'Hamare compass ne kaam karna band kar diya hai,"
+            " samundar ajeeb dikh raha hai!' Aur uske baad, sirf sannata."
+            " Hairani ki baat to ye hai ki unhe dhoondhne gaya rescue plane bhi"
+            " 20 minute baad gayab ho gaya! 5 viman aur 27 log, bina kisi"
+            " malbe ya tel ke nishan ke, hawa mein hi bila gaye! Kya Bermuda"
+            " Triangle mein waqai koi doosri duniya ka darwaza hai? Aapko kya"
+            " lagta hai?"
+        ),
+        "editing_guide": (
+            "CapCut Guide: 1. 1940s military planes flying 2. Radar screen"
+            " spinning 3. Dark ocean storm 4. Bermuda triangle map"
+        ),
+    },
+    {
+        "topic": "The Mystery of Cicada 3301",
+        "script": (
+            "2012 mein internet par ek aisi tasveer aayi jisne duniya ke sabse"
+            " bade hackers aur agencies ki neend uda di! Isme likha tha— 'Hum"
+            " highly intelligent logon ki talash kar rahe hain.' Iske baad shuru"
+            " hua itihas ka sabse complex puzzle! Duniya ke 5 deshon ke telephone"
+            " booths par QR codes mile, deep web ke mysterious links khule."
+            " Kuch hi log is aakhiri level tak pahunche, aur jo pahunche, wo"
+            " hamesha ke liye gayab ho gaye! Ye organization kaun thi? CIA,"
+            " Illuminati, ya koi secret society? Aaj tak kisi ko nahi pata!"
+        ),
+        "editing_guide": (
+            "CapCut Guide: 1. Cicada moth logo / Dark computer screen 2. Hacker"
+            " coding visual 3. Street telephone booth at night 4. Secret"
+            " society symbol"
+        ),
+    },
+    {
+        "topic": "The Lost Colony of Roanoke",
+        "script": (
+            "1590 mein America ke ek island par basa pura ka pura gaon raaton"
+            " raat gayab ho gaya! 115 log, jismein aurtein aur bachhe bhi the,"
+            " bina kisi ladai ya khoon ke nishan ke, achanak gayab ho gaye!"
+            " Pura gaon waisa ka waisa tha, khana table par rakha tha, bandookein"
+            " deewar par latki thi. Wahan sirf ek ajeeb saboot mila— ped ki"
+            " chhal par khuda hua ek akela shabd: CROATOAN! 400 saal se zyada"
+            " guzar chuke hain, par koi nahi jaanta un 115 logon ko zameen nigal"
+            " gayi ya aasmaan!"
+        ),
+        "editing_guide": (
+            "CapCut Guide: 1. 1500s vintage village / forest 2. Empty abandoned"
+            " wooden houses 3. Carved word CROATOAN on tree 4. Foggy spooky"
+            " forest"
+        ),
+    },
 ]
 
 
@@ -81,209 +105,96 @@ def save_history(topic):
         json.dump(history, f, indent=4, ensure_ascii=False)
 
 
-# ३-तहको सुरक्षित भ्वाइस इन्जिन
-async def generate_scene_voice(text, filename):
-    attempts = [
-        ("hi-IN-MadhurNeural", "-2Hz", "+10%"),
-        ("hi-IN-MadhurNeural", "+0Hz", "+0%"),
-        ("hi-IN-SwaraNeural", "+0Hz", "+0%"),
-    ]
-    for voice, pitch, rate in attempts:
-        try:
-            communicate = edge_tts.Communicate(
-                text=text, voice=voice, pitch=pitch, rate=rate
-            )
-            await communicate.save(filename)
-            if os.path.exists(filename) and os.path.getsize(filename) > 500:
-                return
-        except Exception as e:
-            print(f"⚠️ Voice retry ({voice}): {e}", flush=True)
-            await asyncio.sleep(1)
-    raise RuntimeError("Voice generation failed")
+# १. नयाँ ट्रेन्डिङ वा पुराना नसुल्झिएका रहस्य खोज्ने (Never Repeats)
+def get_mystery_content():
+    past_topics = load_history()
+    print(f"🧠 पहिले बनिसकेका विषयहरू: {past_topics}", flush=True)
 
-
-def get_audio_duration(file_path):
-    cmd = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration",
-        "-of",
-        "default=noprint_wrappers=1:nokey=1",
-        file_path,
-    ]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return float(result.stdout.strip())
-
-
-# १ सेकेन्डमै ठ्याक्कै कथा अनुसार मिल्ने फोटो डाउनलोड गर्ने इन्जिन
-def download_exact_scene_image(scene_data, filename):
-    query = scene_data.get("search_query", "")
-    exact_backup = scene_data.get("exact_photo", "")
-
-    print(f"🎯 सिनको लागि १००% मिल्ने फोटो खोज्दैछ: '{query}'...", flush=True)
-
-    # १. पहिले Lexica AI बाट खोज्ने
-    try:
-        encoded = urllib.parse.quote(query)
-        lexica_url = f"https://lexica.art/api/v1/search?q={encoded}"
-        res = requests.get(
-            lexica_url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                    " AppleWebKit/537.36"
+    if client:
+        prompt = f"""
+        You are an elite dark mystery investigator for YouTube Shorts (duration 35-45 seconds).
+        
+        TASK:
+        1. Check if there are any CURRENT REAL-LIFE TRENDING mysteries, bizarre archaeological/deep-sea discoveries happening globally.
+        2. If YES, pick that trending real mystery.
+        3. If NO trending mystery, pick a legendary, terrifying, real-life UNSOLVED HISTORICAL mystery from anywhere worldwide.
+        4. FORBIDDEN TOPICS (Do NOT repeat): {past_topics}
+        5. Must be 100% REAL mystery. Fast-paced, goosebumps-inducing, and thrilling Hindi script.
+        
+        FORMAT (Strict JSON only):
+        {{
+          "topic": "Name of the mystery",
+          "script": "Pura 35-45 second ka thrilling Hindi voiceover text bina kisi bracket ya emoji ke",
+          "editing_guide": "CapCut ma halne 3-4 visual ideas"
+        }}
+        """
+        for model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                print(
+                    f"⚡ Google AI ({model}) बाट नयाँ रहस्य खोज्दैछ...",
+                    flush=True,
                 )
-            },
-            timeout=5,
-        )
-        if res.status_code == 200:
-            images = res.json().get("images", [])
-            if images:
-                best_img = images[0].get("src") or images[0].get("srcSmall")
-                img_res = requests.get(best_img, timeout=6)
-                if img_res.status_code == 200 and len(img_res.content) > 5000:
-                    with open(filename, "wb") as f:
-                        f.write(img_res.content)
+                res = client.models.generate_content(
+                    model=model, contents=prompt
+                )
+                if res and res.text:
+                    match = re.search(r"\{.*\}", res.text.strip(), re.DOTALL)
+                    data = json.loads(match.group(0))
                     print(
-                        f"✅ Lexica बाट हुबहु फोटो सुरक्षित भयो! ({len(img_res.content)} bytes)",
+                        f"✅ AI ले नयाँ विषय पत्ता लगायो: {data['topic']}",
                         flush=True,
                     )
-                    return
-    except Exception as e:
-        print(f"⚠️ Lexica retry: {e}", flush=True)
+                    return data
+            except Exception as e:
+                print(f"⚠️ {model} व्यस्त छ, अर्को प्रयास...", flush=True)
 
-    # २. यदि Lexica ढिला भए सिधै त्यो सिनको लागि फिक्स गरिएको फोटो हाल्ने (१००% प्लेन/जंगल/फाइल नै आउँछ)
-    print("🎯 सिनको लागि ग्यारेन्टी गरिएको फोटो हाल्दैछ...", flush=True)
-    res = requests.get(exact_backup, timeout=8)
-    with open(filename, "wb") as f:
-        f.write(res.content)
-    print("✅ ठ्याक्कै मिल्ने फोटो सुरक्षित भयो!", flush=True)
-
-
-# २ सेकेन्डमै सिन रेन्डर गर्ने इन्जिन
-def build_scene_video(img_path, audio_path, caption_text, duration, out_path):
-    caption_escaped = (
-        caption_text.replace("'", "")
-        .replace(":", "")
-        .replace('"', "")
-        .replace("\\", "")
+    # यदि गुगल ढिला भए आपतकालीन भल्टबाट नयाँ नदोहोरिएको रहस्य लिने
+    print(
+        "🛡️ भल्टबाट नदोहोरिएको नयाँ सत्य रहस्य लिँदैछ...", flush=True
     )
-    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    font_param = f":fontfile='{font_path}'" if os.path.exists(font_path) else ""
+    for m in FALLBACK_MYSTERIES:
+        if m["topic"] not in past_topics:
+            return m
+    return FALLBACK_MYSTERIES[0]
 
-    filter_complex = (
-        f"[0:v]scale=1160:2062:force_original_aspect_ratio=increase,"
-        f"crop=1080:1920:'(in_w-1080)/2':'(in_h-1920)/2 + 4*t',"
-        f"eq=contrast=1.3:brightness=-0.03:saturation=0.7,"
-        f"colorbalance=bs=0.12:bm=0.08:rs=-0.04,"
-        f"vignette=PI/4.5,"
-        f"drawtext=text='{caption_escaped}'{font_param}:fontcolor=yellow:fontsize=54:"
-        f"bordercolor=black:borderw=6:x=(w-text_w)/2:y=h-420[v]"
+
+# २. Best of the Best स्टुडियो हिन्दी आवाज निकाल्ने
+async def generate_best_voice(text, filename):
+    print("🎙️ रौं ठाडो पार्ने स्टुडियो हिन्दी आवाज तयार गर्दैछ...", flush=True)
+    # Pitch: -2Hz (गम्भीर बेस), Rate: +8% (छिटो, पन्ची र सस्पेन्स भरिएको गति)
+    communicate = edge_tts.Communicate(
+        text=text,
+        voice="hi-IN-MadhurNeural",
+        pitch="-2Hz",
+        rate="+8%",
     )
-
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-loop",
-        "1",
-        "-t",
-        str(duration),
-        "-i",
-        img_path,
-        "-i",
-        audio_path,
-        "-filter_complex",
-        filter_complex,
-        "-map",
-        "[v]",
-        "-map",
-        "1:a",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-shortest",
-        out_path,
-    ]
-    subprocess.run(cmd, check=True)
+    await communicate.save(filename)
+    print("✅ आवाज १००% पर्फेक्ट बन्यो!", flush=True)
 
 
 async def main():
-    story_data = PERFECT_MYSTERIES[0]
-    topic = story_data["topic"]
+    data = get_mystery_content()
+    topic = data["topic"]
     save_history(topic)
-    print(f"\n🔥 छानिएको रहस्य: {topic}", flush=True)
 
-    scene_files = []
-    total_dur = 0.0
+    print(f"\n🔥 आजको विषय: {topic}", flush=True)
 
-    for idx, scene in enumerate(story_data["scenes"], 1):
-        print(f"\n--- सिन {idx} तयार गर्दैछ ---", flush=True)
-        aud_file = f"audio_{idx}.mp3"
-        img_file = f"img_{idx}.jpg"
-        vid_file = f"scene_{idx}.mp4"
+    # १. आवाज निकाल्ने
+    audio_file = "mystery_voice.mp3"
+    await generate_best_voice(data["script"], audio_file)
 
-        # १. आवाज निकाल्ने
-        await generate_scene_voice(scene["hindi_speech"], aud_file)
-        dur = get_audio_duration(aud_file)
-        total_dur += dur
-
-        # २. ठ्याक्कै त्यही सिनको फोटो ल्याउने
-        download_exact_scene_image(scene, img_file)
-
-        # ३. भिडियो जोड्ने
-        build_scene_video(
-            img_file, aud_file, scene["hinglish_caption"], dur, vid_file
+    # २. क्यापकटका लागि स्क्रिप्ट र गाइड सेभ गर्ने
+    guide_file = "script_and_guide.txt"
+    with open(guide_file, "w", encoding="utf-8") as f:
+        f.write(f"=== {topic} ===\n\n")
+        f.write(f"📝 हिन्दी भ्वाइस स्क्रिप्ट:\n{data['script']}\n\n")
+        f.write(
+            f"🎬 CapCut भिडियो एडिटिङ आइडिया:\n{data.get('editing_guide', '')}\n"
         )
-        scene_files.append(vid_file)
 
-    with open("list.txt", "w") as f:
-        for v in scene_files:
-            f.write(f"file '{v}'\n")
-
-    print(
-        f"\n🎬 सबै सिनहरू जोड्दैछ ({total_dur:.1f}s)... डार्क BGM थप्दैछ...",
-        flush=True,
-    )
-
-    cmd_final = [
-        "ffmpeg",
-        "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        "list.txt",
-        "-f",
-        "lavfi",
-        "-i",
-        f"aevalsrc=0.12*sin(2*PI*55*t)+0.06*sin(2*PI*110*t):s=44100:d={total_dur}",
-        "-filter_complex",
-        "[0:a][1:a]amix=inputs=2:duration=first:weights=3 0.25[a]",
-        "-map",
-        "0:v",
-        "-map",
-        "[a]",
-        "-c:v",
-        "copy",
-        "-c:a",
-        "aac",
-        "-t",
-        str(total_dur),
-        "final_mystery_short.mp4",
-    ]
-    subprocess.run(cmd_final, check=True)
-
-    print(
-        "\n🎉 १००% सम्पन्न भयो! भिडियो फाइल: final_mystery_short.mp4", flush=True
-    )
+    print("\n🎉 सबै काम सम्पन्न भयो!")
+    print(f"📁 आवाज: {audio_file}")
+    print(f"📄 स्क्रिप्ट र गाइड: {guide_file}")
 
 
 if __name__ == "__main__":
