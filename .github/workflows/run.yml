@@ -1,0 +1,30 @@
+name: Run Mystery Voice Test
+
+on:
+  workflow_dispatch: # तपाईंले बटन थिचेपछि मात्र चल्ने
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Tools
+        run: |
+          pip install edge-tts
+
+      - name: Run Script
+        run: |
+          python main.py
+
+      - name: Save Audio File
+        uses: actions/upload-artifact@v4
+        with:
+          name: mystery-audio
+          path: mystery_voice.mp3
